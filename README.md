@@ -2,6 +2,8 @@
 
 A simple, lightweight web interface for configuring [OpenTabletDriver](https://opentabletdriver.net/) settings. This tool provides an easy-to-use GUI for mapping buttons, adjusting tablet area sensitivity, and restarting the driver daemon, specifically tailored for macOS (but adaptable for Linux).
 
+![Web Console Demo](demo.png)
+
 ## Features
 
 - **Driver Status Monitoring**: Real-time check if the OpenTabletDriver Daemon is running.
