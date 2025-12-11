@@ -30,6 +30,20 @@
         <button onclick="restartDriver()">Restart Driver</button>
     </div>
 
+    <div class="card" id="deviceInfoSection" style="display:none;">
+        <h2>Device Information</h2>
+        <div class="row">
+            <div class="col">
+                <label>Tablet Name</label>
+                <div id="deviceName" style="padding: 8px; background: #eee; border-radius: 4px;">Unknown</div>
+            </div>
+            <div class="col">
+                <label>Max Area</label>
+                <div id="deviceMaxArea" style="padding: 8px; background: #eee; border-radius: 4px;">Unknown</div>
+            </div>
+        </div>
+    </div>
+
     <div class="card" id="configSection" style="display:none;">
         <h2>Configuration</h2>
         
@@ -86,12 +100,21 @@
             currentSettings = await res.json();
             renderSettings();
             document.getElementById('configSection').style.display = 'block';
+            document.getElementById('deviceInfoSection').style.display = 'block';
         }
 
         function renderSettings() {
             if (!currentSettings || !currentSettings.Profiles || currentSettings.Profiles.length === 0) return;
             
             const profile = currentSettings.Profiles[0];
+
+            // Device Info
+            document.getElementById('deviceName').innerText = profile.Tablet || 'Unknown';
+            if (profile.AbsoluteModeSettings && profile.AbsoluteModeSettings.Tablet) {
+                const w = profile.AbsoluteModeSettings.Tablet.Width;
+                const h = profile.AbsoluteModeSettings.Tablet.Height;
+                document.getElementById('deviceMaxArea').innerText = `${w}mm x ${h}mm`;
+            }
             
             // Pen Buttons
             const container = document.getElementById('penButtonsContainer');
