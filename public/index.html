@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenTabletDriver Console</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #f4f4f4; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { margin-top: 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { padding: 8px; width: 100%; box-sizing: border-box; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        .status { padding: 10px; border-radius: 4px; margin-bottom: 20px; text-align: center; font-weight: bold; }
+        .status.running { background: #d4edda; color: #155724; }
+        .status.stopped { background: #f8d7da; color: #721c24; }
+        .row { display: flex; gap: 20px; }
+        .col { flex: 1; }
+    </style>
+</head>
+<body>
+
+    <h1>OpenTabletDriver Manager</h1>
+
+    <div id="statusIndicator" class="status stopped">Checking status...</div>
+
+    <div class="card">
+        <h2>Actions</h2>
+        <button onclick="restartDriver()">Restart Driver</button>
+    </div>
+
+    <div class="card" id="configSection" style="display:none;">
+        <h2>Configuration</h2>
+        
+        <h3>Pen Buttons</h3>
+        <div id="penButtonsContainer"></div>
+
+        <h3>Sensitivity (Absolute Mode Area)</h3>
+        <div class="row">
+            <div class="col">
+                <label>Width (mm)</label>
+                <input type="number" id="areaWidth" step="0.1">
+            </div>
+            <div class="col">
+                <label>Height (mm)</label>
+                <input type="number" id="areaHeight" step="0.1">
+            </div>
+        </div>
+        <div class="row">
+             <div class="col">
+                <label>X Offset (mm)</label>
+                <input type="number" id="areaX" step="0.1">
+            </div>
+            <div class="col">
+                <label>Y Offset (mm)</label>
+                <input type="number" id="areaY" step="0.1">
+            </div>
+        </div>
+
+        <button onclick="saveSettings()" style="margin-top: 20px; background: #28a745;">Save & Apply</button>
+    </div>
+
+    <script>
+        let currentSettings = null;
+
+        async function checkStatus() {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            const el = document.getElementById('statusIndicator');
+            if (data.running) {
+                el.className = 'status running';
+                el.innerText = 'Driver is RUNNING';
+            } else {
+                el.className = 'status stopped';
+                el.innerText = 'Driver is STOPPED';
+            }
+        }
+
+        async function loadSettings() {
+            const res = await fetch('/api/settings');
+            if (!res.ok) {
+                alert('Failed to load settings');
+                return;
+            }
+            currentSettings = await res.json();
+            renderSettings();
+            document.getElementById('configSection').style.display = 'block';
+        }
+
+        function renderSettings() {
+            if (!currentSettings || !currentSettings.Profiles || currentSettings.Profiles.length === 0) return;
+            
+            const profile = currentSettings.Profiles[0];
+            
+            // Pen Buttons
+            const container = document.getElementById('penButtonsContainer');
+            container.innerHTML = '';
+            
+            if (profile.Bindings && profile.Bindings.PenButtons) {
+                profile.Bindings.PenButtons.forEach((btn, index) => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <label>Button ${index + 1}</label>
+                        <select onchange="updatePenButton(${index}, this.value)">
+                            <option value="Button ${index + 1}" ${getBtnValue(btn) === `Button ${index + 1}` ? 'selected' : ''}>Default (Button ${index + 1})</option>
+                            <option value="Eraser" ${getBtnValue(btn) === 'Eraser' ? 'selected' : ''}>Eraser</option>
+                            <option value="Tip" ${getBtnValue(btn) === 'Tip' ? 'selected' : ''}>Tip</option>
+                            <option value="Right Click" ${getBtnValue(btn) === 'Right Click' ? 'selected' : ''}>Right Click</option>
+                            <option value="Middle Click" ${getBtnValue(btn) === 'Middle Click' ? 'selected' : ''}>Middle Click</option>
+                        </select>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+
+            // Area
+            if (profile.AbsoluteModeSettings && profile.AbsoluteModeSettings.Tablet) {
+                document.getElementById('areaWidth').value = profile.AbsoluteModeSettings.Tablet.Width;
+                document.getElementById('areaHeight').value = profile.AbsoluteModeSettings.Tablet.Height;
+                document.getElementById('areaX').value = profile.AbsoluteModeSettings.Tablet.X;
+                document.getElementById('areaY').value = profile.AbsoluteModeSettings.Tablet.Y;
+            }
+        }
+
+        function getBtnValue(btnObj) {
+            // Helper to extract "Value": "Eraser" from the structure
+            if (btnObj.Settings && btnObj.Settings.length > 0) {
+                const bindingProp = btnObj.Settings.find(s => s.Property === 'Binding');
+                return bindingProp ? bindingProp.Value : '';
+            }
+            return '';
+        }
+
+        function updatePenButton(index, value) {
+            // Update the local JSON model
+             const profile = currentSettings.Profiles[0];
+             const btn = profile.Bindings.PenButtons[index];
+             
+             // We assume the structure matches the one seen in settings.json
+             if (btn.Settings) {
+                 const bindingProp = btn.Settings.find(s => s.Property === 'Binding');
+                 if (bindingProp) {
+                     bindingProp.Value = value;
+                 } else {
+                     btn.Settings.push({ Property: 'Binding', Value: value });
+                 }
+             }
+        }
+
+        async function saveSettings() {
+             const profile = currentSettings.Profiles[0];
+             // Update Area from inputs
+             if (profile.AbsoluteModeSettings && profile.AbsoluteModeSettings.Tablet) {
+                profile.AbsoluteModeSettings.Tablet.Width = parseFloat(document.getElementById('areaWidth').value);
+                profile.AbsoluteModeSettings.Tablet.Height = parseFloat(document.getElementById('areaHeight').value);
+                profile.AbsoluteModeSettings.Tablet.X = parseFloat(document.getElementById('areaX').value);
+                profile.AbsoluteModeSettings.Tablet.Y = parseFloat(document.getElementById('areaY').value);
+             }
+
+             const res = await fetch('/api/settings', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify(currentSettings)
+             });
+             
+             const data = await res.json();
+             if (data.success) {
+                 alert('Saved and Restarted!');
+                 checkStatus();
+             } else {
+                 alert('Error: ' + data.error);
+             }
+        }
+
+        async function restartDriver() {
+            await fetch('/api/restart', { method: 'POST' });
+            setTimeout(checkStatus, 2000);
+        }
+
+        // Init
+        checkStatus();
+        loadSettings();
+        setInterval(checkStatus, 5000);
+
+    </script>
+</body>
+</html>
